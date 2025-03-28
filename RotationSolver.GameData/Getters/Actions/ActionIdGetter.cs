@@ -1,4 +1,4 @@
-﻿using Action = Lumina.Excel.GeneratedSheets.Action;
+﻿using Action = Lumina.Excel.Sheets.Action;
 
 namespace RotationSolver.GameData.Getters.Actions;
 
@@ -28,7 +28,6 @@ internal class ActionIdGetter : ActionGetterBase
         return $"""
         /// <summary>
         /// {item.GetDescName()}
-        /// {GetDesc(item)}
         /// </summary>
         {name} = {item.RowId},
         """;

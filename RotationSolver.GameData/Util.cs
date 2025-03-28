@@ -1,4 +1,4 @@
-﻿using Lumina.Excel.GeneratedSheets;
+﻿using Lumina.Excel.Sheets;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -16,7 +16,7 @@ internal static partial class Util
     public static bool IsSingleJobForCombat(this ClassJobCategory jobCategory)
     {
         if (jobCategory.RowId == 68) return true; // ACN SMN SCH 
-        var str = jobCategory.Name.RawString.Replace(" ", "");
+        var str = jobCategory.Name.ExtractText().Replace(" ", "");
         if (!str.All(char.IsUpper)) return false;
         if (str.Length is not 3 and not 6) return false;
         return true;
@@ -129,7 +129,7 @@ internal static partial class Util
     /// <param name="desc">The description of the action.</param>
     /// <param name="isDuty">Indicates if the action is a duty action.</param>
     /// <returns>The generated action code.</returns>
-    public static string ToCode(this Lumina.Excel.GeneratedSheets.Action item,
+    public static string ToCode(this Lumina.Excel.Sheets.Action item,
         string actionName, string actionDescName, string desc, bool isDuty)
     {
         if (isDuty)
@@ -160,8 +160,8 @@ internal static partial class Util
         /// {{desc}}
         /// </summary>
         {{(isDuty ? $"[ID({item.RowId})]" : string.Empty)}}
-        {{(item.ActionCategory.Row is 15 ? "private" : "public")}} IBaseAction {{actionName}} => _{{actionName}}Creator.Value;
-        """;
+        {{(item.ActionCategory.Value.RowId is 15 ? "private" : "public")}} IBaseAction {{actionName}} => _{{actionName}}Creator.Value;
+        """;    
     }
 
     /// <summary>
@@ -169,13 +169,13 @@ internal static partial class Util
     /// </summary>
     /// <param name="action">The action.</param>
     /// <returns>The description name of the action.</returns>
-    public static string GetDescName(this Lumina.Excel.GeneratedSheets.Action action)
+    public static string GetDescName(this Lumina.Excel.Sheets.Action action)
     {
-        var jobs = action.ClassJobCategory.Value?.Name.RawString;
+        var jobs = action.ClassJobCategory.Value.Name.ExtractText();
         jobs = string.IsNullOrEmpty(jobs) ? string.Empty : $" ({jobs})";
 
         var cate = action.IsPvP ? " <i>PvP</i>" : " <i>PvE</i>";
 
-        return $"<see href=\"https://garlandtools.org/db/#action/{action.RowId}\"><strong>{action.Name.RawString}</strong></see>{cate}{jobs} [{action.RowId}] [{action.ActionCategory.Value?.Name.RawString ?? string.Empty}]";
+        return $"<see href=\"https://garlandtools.org/db/#action/{action.RowId}\"><strong>{action.Name.ExtractText()}</strong></see>{cate}{jobs} [{action.RowId}] [{action.ActionCategory.Value.Name.ExtractText() ?? string.Empty}]";
     }
 }

@@ -1,5 +1,7 @@
-﻿using Lumina.Excel.GeneratedSheets;
+﻿using System.Reflection;
+using Lumina.Excel.Sheets;
 using RotationSolver.GameData.Getters.Actions;
+using System.Text.RegularExpressions;
 
 namespace RotationSolver.GameData.Getters;
 
@@ -43,19 +45,22 @@ internal class RotationGetter
         var rotationsCode = rotationsGetter.GetCode();
         var traitsCode = traitsGetter.GetCode();
 
+        // Regular expression to remove <colortype(x)> and <edgecolortype(x)> tags
+        var regex = new Regex(@"<colortype\(\d+\)>|<edgecolortype\(\d+\)>|<colortype\(0\)>|<edgecolortype\(0\)>");
+
         return $$"""
          /// <summary>
          /// <see href="https://na.finalfantasyxiv.com/jobguide/{{jobName?.Replace(" ", "").ToLower()}}"><strong>{{jobName}}</strong></see>
          /// <br>Number of Actions: {{rotationsGetter.Count}}</br>
          /// <br>Number of Traits: {{traitsGetter.Count}}</br>
-         /// </summary>
+         </summary>
          [Jobs({{jobs}})]
          public abstract partial class {{GetName()}} : CustomRotation
          {
              {{jobGauge}}
 
          #region Actions
-         {{rotationsCode.Table()}}
+         {{regex.Replace(rotationsCode.Table(), string.Empty)}}
 
          {{Util.ArrayNames("AllBaseActions", "IBaseAction",
          "public override", [.. rotationsGetter.AddedNames]).Table()}}
@@ -63,14 +68,15 @@ internal class RotationGetter
          {{GetLBInRotation(job.LimitBreak1.Value, 1)}}
          {{GetLBInRotation(job.LimitBreak2.Value, 2)}}
          {{GetLBInRotation(job.LimitBreak3.Value, 3)}}
-         {{GetLBInRotationPvP(gameData.GetExcelSheet<Lumina.Excel.GeneratedSheets.Action>()?.FirstOrDefault(i => i.ActionCategory.Row is 15
-            && ((bool?)i.ClassJobCategory.Value?.GetType().GetRuntimeProperty(job.Abbreviation)?.GetValue(i.ClassJobCategory.Value) ?? false)))}}
+         {{GetLBInRotationPvP(gameData.GetExcelSheet<Lumina.Excel.Sheets.Action>()?.FirstOrDefault(i => i.ActionCategory.RowId == 15
+            && (bool)(i.ClassJobCategory.Value.GetType().GetRuntimeProperty(job.Abbreviation.ExtractText())?.GetValue(i.ClassJobCategory.Value) ?? false)))}}
+
 
          #endregion
 
          #region Traits
          
-         {{traitsCode.Table()}}
+         {{regex.Replace(traitsCode.Table(), string.Empty)}}
 
          {{Util.ArrayNames("AllTraits", "IBaseTrait",
          "public override", [.. traitsGetter.AddedNames]).Table()}}
@@ -86,9 +92,10 @@ internal class RotationGetter
     private string GetJobs()
     {
         var jobs = $"Job.{job.Abbreviation}";
-        if (job.RowId != 28 && job.RowId != job.ClassJobParent.Row)
+        if (job.RowId != 28 && job.RowId != job.ClassJobParent.RowId)
         {
-            jobs += $", Job.{job.ClassJobParent.Value?.Abbreviation ?? "ADV"}";
+            var parentAbbreviation = job.ClassJobParent.Value.Abbreviation.ExtractText();
+            jobs += $", Job.{(string.IsNullOrEmpty(parentAbbreviation) ? "ADV" : parentAbbreviation)}";
         }
         return jobs;
     }
@@ -105,19 +112,19 @@ internal class RotationGetter
     /// <param name="action">The action.</param>
     /// <param name="index">The index of the limit break.</param>
     /// <returns>The limit break code.</returns>
-    private string GetLBInRotation(Lumina.Excel.GeneratedSheets.Action? action, int index)
+    private string GetLBInRotation(Lumina.Excel.Sheets.Action? action, int index)
     {
-        if (action == null || action.RowId == 0) return string.Empty;
+        if (action == null || action.Value.RowId == 0) return string.Empty;
 
-        var code = GetLBPvE(action, out var name);
+        var code = GetLBPvE(action.Value, out var name);
 
         return code + "\n" + $"""
-            /// <summary>
-            /// {action.GetDescName()}
-            /// {GetDesc(action)}
-            /// </summary>
-            private sealed protected override IBaseAction LimitBreak{index} => {name};
-            """;
+        /// <summary>
+        /// {action.Value.GetDescName()}
+        /// {GetDesc(action.Value)}
+        /// </summary>
+        private sealed protected override IBaseAction LimitBreak{index} => {name};
+        """;
     }
 
     /// <summary>
@@ -126,9 +133,9 @@ internal class RotationGetter
     /// <param name="action">The action.</param>
     /// <param name="name">The name of the limit break.</param>
     /// <returns>The PvE limit break code.</returns>
-    private string GetLBPvE(Lumina.Excel.GeneratedSheets.Action action, out string name)
+    private string GetLBPvE(Lumina.Excel.Sheets.Action action, out string name)
     {
-        name = $"{action.Name.RawString.ToPascalCase()}PvE";
+        name = $"{action.Name.ExtractText().ToPascalCase()}PvE";
         var descName = action.GetDescName();
 
         return action.ToCode(name, descName, GetDesc(action), false);
@@ -139,19 +146,19 @@ internal class RotationGetter
     /// </summary>
     /// <param name="action">The action.</param>
     /// <returns>The PvP limit break code.</returns>
-    private string GetLBInRotationPvP(Lumina.Excel.GeneratedSheets.Action? action)
+    private string GetLBInRotationPvP(Lumina.Excel.Sheets.Action? action)
     {
-        if (action == null || action.RowId == 0) return string.Empty;
+        if (action == null || action.Value.RowId == 0) return string.Empty;
 
-        var code = GetLBPvP(action, out var name);
+        var code = GetLBPvP(action.Value, out var name);
 
         return code + "\n" + $"""
-            /// <summary>
-            /// {action.GetDescName()}
-            /// {GetDesc(action)}
-            /// </summary>
-            private sealed protected override IBaseAction LimitBreakPvP => {name};
-            """;
+        /// <summary>
+        /// {action.Value.GetDescName()}
+        /// {GetDesc(action.Value)}
+        /// </summary>
+        private sealed protected override IBaseAction LimitBreakPvP => {name};
+        """;
     }
 
     /// <summary>
@@ -160,9 +167,9 @@ internal class RotationGetter
     /// <param name="action">The action.</param>
     /// <param name="name">The name of the limit break.</param>
     /// <returns>The PvP limit break code.</returns>
-    private string GetLBPvP(Lumina.Excel.GeneratedSheets.Action action, out string name)
+    private string GetLBPvP(Lumina.Excel.Sheets.Action action, out string name)
     {
-        name = $"{action.Name.RawString.ToPascalCase()}PvP";
+        name = $"{action.Name.ExtractText().ToPascalCase()}PvP";
         var descName = action.GetDescName();
 
         return action.ToCode(name, descName, GetDesc(action), false);
@@ -173,9 +180,9 @@ internal class RotationGetter
     /// </summary>
     /// <param name="item">The action.</param>
     /// <returns>The description of the action.</returns>
-    private string GetDesc(Lumina.Excel.GeneratedSheets.Action item)
+    private string GetDesc(Lumina.Excel.Sheets.Action item)
     {
-        var desc = gameData.GetExcelSheet<ActionTransient>()?.GetRow(item.RowId)?.Description.RawString ?? string.Empty;
+        var desc = gameData.GetExcelSheet<ActionTransient>()?.GetRow(item.RowId).Description.ExtractText() ?? string.Empty;
         return $"<para>{desc.Replace("\n", "</para>\n/// <para>")}</para>";
     }
 }
